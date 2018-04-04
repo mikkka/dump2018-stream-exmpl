@@ -26,15 +26,25 @@ object FileTxProcessor extends App {
     val logic =
       builder.add(FraudLogic(1.seconds, 1.seconds, FraudDetector.detect, 4))
 
-    logic.mon1Out ~> Flow[Int].map{x => s"got $x tx"} ~> Util.lineSink(logFile1)
-    logic.mon2Out ~> Flow[Map[Fraud, Int]].map{x => s"fraud gisto: $x "} ~> Util.lineSink(logFile2)
+    logic.mon1Out ~>
+      Flow[Int].map { x =>
+        s"got $x tx"
+      } ~> Util.lineSink(logFile1)
+    logic.mon2Out ~>
+      Flow[Map[Fraud, Int]].map { x =>
+        s"fraud gisto: $x "
+      } ~>
+      Util.lineSink(logFile2)
 
     FlowShape(logic.in, logic.out)
   }
 
-  val res = FileIO.fromPath(inputFile)
-    .via(Framing.delimiter(ByteString(System.lineSeparator),
-      maximumFrameLength = 4000, allowTruncation = true))
+  val res = FileIO
+    .fromPath(inputFile)
+    .via(
+      Framing.delimiter(ByteString(System.lineSeparator),
+                        maximumFrameLength = 4000,
+                        allowTruncation = true))
     .map(x => Transaction.fromString(x.utf8String))
     .mapConcat(_.toList)
     .via(logicFlow)

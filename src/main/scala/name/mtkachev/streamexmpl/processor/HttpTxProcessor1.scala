@@ -18,7 +18,7 @@ import scala.io.StdIn
 /**
   * handle inifinite upload
   */
-object HttpTxProcessor1 extends App  {
+object HttpTxProcessor1 extends App {
   val conf = ConfigFactory.load("app")
   implicit val system = ActorSystem("http-processor1", conf)
   implicit val materializer = ActorMaterializer()
@@ -27,27 +27,36 @@ object HttpTxProcessor1 extends App  {
   val outputFile = Paths.get(args(1))
 
   implicit val executionContext = system.dispatcher
-  implicit val jsonStreamingSupport = EntityStreamingSupport.json()
 
   val logicFlow = GraphDSL.create() { implicit builder =>
     import GraphDSL.Implicits._
 
     val logic =
       builder.add(FraudLogic(1.seconds, 1.seconds, FraudDetector.detect, 4))
+
     val monOut = builder.add(Merge[String](2))
 
-    logic.mon1Out ~> Flow[Int].map{x => s"got $x tx"} ~> monOut
-    logic.mon2Out ~> Flow[Map[Fraud, Int]].map{x => s"fraud gisto: $x "} ~> monOut
+    logic.mon1Out ~>
+      Flow[Int].map { x =>
+        s"got $x tx"
+      } ~> monOut
+    logic.mon2Out ~>
+      Flow[Map[Fraud, Int]].map { x =>
+        s"fraud gisto: $x "
+      } ~> monOut
 
     monOut ~> Util.lineSink(logFile)
 
     FlowShape(logic.in, logic.out)
   }
 
+  implicit val jsonStreamingSupport = EntityStreamingSupport.json()
+
   val route =
     path("process") {
       entity(asSourceOf[Transaction]) { txs =>
-        val uploadRes = txs.via(logicFlow)
+        val uploadRes = txs
+          .via(logicFlow)
           .map(x => s"${x._1} : ${x._2}")
           .runWith(Util.lineSink(outputFile))
 
@@ -59,7 +68,8 @@ object HttpTxProcessor1 extends App  {
 
   val bindingFuture = Http().bindAndHandle(route, "localhost", 8081)
 
-  println(s"Processor online at http://localhost:8081/\nPress RETURN to stop...")
+  println(
+    s"Processor online at http://localhost:8081/\nPress RETURN to stop...")
   StdIn.readLine()
 
   bindingFuture

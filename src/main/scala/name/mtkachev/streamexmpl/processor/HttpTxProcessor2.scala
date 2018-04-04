@@ -22,7 +22,7 @@ import scala.io.StdIn
 /**
   * pull source from httpSource with infinite client response
   */
-object HttpTxProcessor2 extends App  {
+object HttpTxProcessor2 extends App {
   val conf = ConfigFactory.load("app")
   implicit val system = ActorSystem("http-processor2", conf)
   implicit val materializer = ActorMaterializer()
@@ -42,43 +42,54 @@ object HttpTxProcessor2 extends App  {
     val monOut = builder.add(Merge[String](2))
 
     logic.out ~>
-      Flow[(Transaction, Fraud)].map(x => s"${x._1} : ${x._2}") ~>
+      Flow[(Transaction, Fraud)]
+        .map(x => s"${x._1} : ${x._2}") ~>
       Util.lineSink(outputFile)
 
-    logic.mon1Out ~> Flow[Int].map{x => s"got $x tx"} ~> monOut
-    logic.mon2Out ~> Flow[Map[Fraud, Int]].map{x => s"fraud gisto: $x "} ~> monOut
+    logic.mon1Out ~>
+      Flow[Int].map { x =>
+        s"got $x tx"
+      } ~> monOut
+    logic.mon2Out ~>
+      Flow[Map[Fraud, Int]].map { x =>
+        s"fraud gisto: $x "
+      } ~> monOut
 
     FlowShape(logic.in, monOut.out)
   }
 
   def txStream: Future[Source[Transaction, Any]] =
-    Http().singleRequest(request = HttpRequest(uri = Uri(httpSource))).map { resp =>
-      resp.entity.withoutSizeLimit.dataBytes.via(
-        Framing.delimiter(ByteString("\n"),
-          maximumFrameLength = 10000, allowTruncation = true)
-      ).mapAsync(4)(str => Unmarshal(str).to[Transaction])
-    }
+    Http()
+      .singleRequest(request = HttpRequest(uri = Uri(httpSource)))
+      .map { resp =>
+        resp.entity.withoutSizeLimit.dataBytes
+          .via(
+            Framing.delimiter(ByteString("\n"),
+                              maximumFrameLength = 10000,
+                              allowTruncation = true)
+          )
+          .mapAsync(4)(str => Unmarshal(str).to[Transaction])
+      }
 
   val route =
-      path("process") {
-        onSuccess(txStream) { txs =>
-          complete {
-            HttpResponse(
-              entity =
-                HttpEntity.Chunked(
-                  ContentTypes.`text/plain(UTF-8)`,
-                  txs
-                    .via(logicFlow)
-                    .map(x ⇒ ByteString(x.toString + "\n---\n", "UTF8"))
-                )
+    path("process") {
+      onSuccess(txStream) { txs =>
+        complete {
+          HttpResponse(
+            entity = HttpEntity.Chunked(
+              ContentTypes.`text/plain(UTF-8)`,
+              txs.via(logicFlow)
+                .map(x ⇒ ByteString(x.toString + "\n---\n", "UTF8"))
             )
-          }
+          )
         }
       }
+    }
 
   val bindingFuture = Http().bindAndHandle(route, "localhost", 8081)
 
-  println(s"Processor online at http://localhost:8081/\nPress RETURN to stop...")
+  println(
+    s"Processor online at http://localhost:8081/\nPress RETURN to stop...")
   StdIn.readLine()
 
   bindingFuture

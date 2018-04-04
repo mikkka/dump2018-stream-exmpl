@@ -27,4 +27,12 @@ object FraudDetector {
       case 3 => Fraud100
     }
   }
+
+  def detectSync(tx: Transaction): Fraud =
+    (tx.accountNo.sum + tx.id.sum) % 4 match {
+      case 0 => Fraud0
+      case 1 => Fraud30
+      case 2 => Fraud70
+      case 3 => Fraud100
+    }
 }

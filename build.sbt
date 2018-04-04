@@ -2,6 +2,7 @@ import sbt.Keys.libraryDependencies
 
 val _organization = "name.mtkachev"
 val _scalaVersion = "2.12.4"
+//you must build your own version of akka with debug enabled to use this
 //val akkaVersion = "2.5.10dbg"
 val akkaVersion = "2.5.10"
 

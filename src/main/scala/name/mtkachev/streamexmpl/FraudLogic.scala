@@ -32,8 +32,6 @@ class FraudLogicShape(_init: Init[Transaction] = Name("PriorityWorkerPool"))
 object FraudLogic {
   val MAX_MON_COUNT = 10000
 
-  // todo использовать mat value
-  // todo buffer strategy
   def apply(mon1Dur: FiniteDuration,
             mon2Dur: FiniteDuration,
             fraudDetector: Transaction => Future[Fraud],

@@ -44,14 +44,9 @@ object HttpServStreamGenApp extends App with SprayJsonSupport {
     } ~
     path("push") {
       get {
-/*
-        Marshal(txSrc).to[RequestEntity]
-        Multipart.FormData(
-          Source.single(Multipart.FormData.BodyPart.fromPath(name, contentType, file, chunkSize))
-        )
-*/
         val txEnc: Source[ByteString, NotUsed] =
           txSrc.map {tx: Transaction => ByteString(txFormat.write(tx).prettyPrint)}
+
         val txEnt = HttpEntity.Chunked.fromData(MediaTypes.`application/json`, txEnc )
         val reqF = Http().singleRequest(
           HttpRequest(
@@ -60,6 +55,7 @@ object HttpServStreamGenApp extends App with SprayJsonSupport {
             entity = txEnt
           )
         )
+
         complete(
           reqF.map { _ =>
             "done"
